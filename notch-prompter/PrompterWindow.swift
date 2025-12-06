@@ -1,29 +1,31 @@
 import AppKit
 import SwiftUI
+import Combine
 
 final class PrompterWindow {
     private var window: NSWindow!
     private let viewModel: PrompterViewModel
+    private var cancellables: Set<AnyCancellable> = []
 
     init(viewModel: PrompterViewModel) {
         self.viewModel = viewModel
 
         let contentView = PrompterView(viewModel: viewModel)
-            .frame(width: 400, height: 150)
-            .clipShape( UnevenRoundedRectangle(
+            .clipShape(UnevenRoundedRectangle(
                 topLeadingRadius: 0,
                 bottomLeadingRadius: 16,
                 bottomTrailingRadius: 16,
                 topTrailingRadius: 0
             ))
 
-
         let hosting = NSHostingView(rootView: contentView)
         hosting.wantsLayer = true
         hosting.layer?.masksToBounds = true
 
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 150),
+            contentRect: NSRect(x: 0, y: 0,
+                                width: viewModel.prompterWidth,
+                                height: viewModel.prompterHeight),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -31,13 +33,21 @@ final class PrompterWindow {
 
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.level = .floating
+        window.level = .statusBar
         window.hasShadow = true
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isMovableByWindowBackground = false
         window.contentView = hosting
+
+        viewModel.$prompterWidth
+            .combineLatest(viewModel.$prompterHeight)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] width, height in
+                self?.resizeWindow(width: width, height: height)
+            }
+            .store(in: &cancellables)
     }
 
     func show() {
@@ -47,18 +57,22 @@ final class PrompterWindow {
             return
         }
 
-        let screenFrame = screen.frame
-        let windowSize = window.frame.size
-
-        let x = screenFrame.midX - windowSize.width / 2
-        let y = screenFrame.maxY - windowSize.height + 2 // hide borders on top
-
-        window.setFrameOrigin(NSPoint(x: x, y: y))
-
-        window.level = .statusBar // stick to top?
-
+        let frame = topCenterFrame(width: viewModel.prompterWidth, height: viewModel.prompterHeight, screen: screen)
+        window.setFrame(frame, display: true)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func resizeWindow(width: CGFloat, height: CGFloat) {
+        guard let screen = window.screen ?? NSScreen.main else { return }
+        let frame = topCenterFrame(width: width, height: height, screen: screen)
+
+        window.setFrame(frame, display: true, animate: true)
+    }
+
+    private func topCenterFrame(width: CGFloat, height: CGFloat, screen: NSScreen) -> CGRect {
+        let x = screen.frame.midX - width / 2
+        let y = screen.frame.maxY - height + 2 // slight offset to hide border under notch
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
 }

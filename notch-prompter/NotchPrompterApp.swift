@@ -60,8 +60,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         prompterWindow = PrompterWindow(viewModel: viewModel)
         prompterWindow.show()
-
-        // Accessory app (no Dock icon)
         NSApp.setActivationPolicy(.accessory)
     }
 }

@@ -24,7 +24,8 @@ final class PrompterViewModel: ObservableObject {
     @Published var speed: Double = 12.0
     @Published var fontSize: Double = 14.0
     @Published var pauseOnHover: Bool = true
-    
+    @Published var prompterWidth: CGFloat = 400
+    @Published var prompterHeight: CGFloat = 150
     
     private var timerCancellable: AnyCancellable?
     private var lastTick: CFTimeInterval?
@@ -55,7 +56,7 @@ final class PrompterViewModel: ObservableObject {
     }
     
     private func startTimer() {
-        // Use high frequency timer for smoothness (display refresh)
+        // high frequency timer for smoothness (display refresh)
         timerCancellable = CADisplayLinkPublisher()
             .receive(on: RunLoop.main)
             .sink { [weak self] timestamp in
@@ -65,7 +66,6 @@ final class PrompterViewModel: ObservableObject {
     
     private func tick(current: CFTimeInterval) {
         guard isPlaying else {
-            // Do not advance lastTick while paused; play() will reset it.
             return
         }
         let dt: CFTimeInterval
@@ -81,10 +81,6 @@ final class PrompterViewModel: ObservableObject {
         offset += delta
     }
     
-    
-    // MARK: - Display link publisher
-    
-    // A Combine publisher backed by CVDisplayLink for smooth ticks.
     private final class CADisplayLinkProxy {
         let subject = PassthroughSubject<CFTimeInterval, Never>()
         var link: CVDisplayLink?

@@ -29,9 +29,24 @@ struct SettingsView: View {
                     .frame(width: 80, alignment: .trailing)
             }
             
+            HStack {
+                Text("Prompter width")
+                Slider(value: $viewModel.prompterWidth, in: 100...600, step: 1)
+                Text("\(Int(viewModel.prompterWidth)) px")
+                    .monospacedDigit()
+                    .frame(width: 80, alignment: .trailing)
+            }
+            
+            HStack {
+                Text("Prompter height")
+                Slider(value: $viewModel.prompterHeight, in: 100...500, step: 1)
+                Text("\(Int(viewModel.prompterHeight)) px")
+                    .monospacedDigit()
+                    .frame(width: 80, alignment: .trailing)
+            }
+            
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Pause prompter on mouse hover", isOn: $viewModel.pauseOnHover)
-//                    Toggle("Play on detected audio", isOn: $viewModel.playOnAudio)
             }
             .toggleStyle(.switch)
             
