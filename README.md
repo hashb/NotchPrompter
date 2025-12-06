@@ -16,7 +16,8 @@ Perfect for quick videos, or keeping important text visible while you work.
 - Customizable speed and size 
 
 ## Screenshot
-<img width="1303" height="800" alt="SCR-20251206-nrty" src="https://github.com/user-attachments/assets/1c76dfd7-559f-4df1-9cd6-c183b7c538d6" />
+<img width="1512" height="720" alt="SCR-20251206-qhya" src="https://github.com/user-attachments/assets/a85e4573-85a3-4296-b454-a41a7b62cae9" />
+
 
 ## How to install?
 
