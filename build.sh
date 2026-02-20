@@ -53,6 +53,19 @@ require_cmd npx         "Install Node.js from https://nodejs.org"
 [[ -f "$PROJECT/project.pbxproj" ]] \
     || error "Xcode project not found at '$PROJECT'. See README for one-time setup instructions."
 
+# ── Detect signing identity ────────────────────────────────────────────────────
+info "Detecting Developer ID from Keychain..."
+TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep "Developer ID Application" \
+    | head -1 \
+    | sed 's/.*(\(.*\))/\1/' \
+    | tr -d ' ')
+
+if [[ -z "$TEAM_ID" ]]; then
+    error "No 'Developer ID Application' certificate found in Keychain. Install one from developer.apple.com or open Xcode → Settings → Accounts."
+fi
+info "Team ID: $TEAM_ID"
+
 # ── Clean ─────────────────────────────────────────────────────────────────────
 info "Cleaning previous build artifacts..."
 rm -rf "$BUILD_DIR"
@@ -65,17 +78,20 @@ xcodebuild archive \
     -scheme "$SCHEME" \
     -configuration Release \
     -archivePath "$ARCHIVE_PATH" \
-    -allowProvisioningUpdates
+    -allowProvisioningUpdates \
+    DEVELOPMENT_TEAM="$TEAM_ID" \
+    CODE_SIGN_STYLE=Automatic
 
 # ── Export ────────────────────────────────────────────────────────────────────
 info "Generating ExportOptions.plist..."
-cat > "$EXPORT_PLIST" <<'PLIST'
+cat > "$EXPORT_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>method</key>       <string>developer-id</string>
     <key>signingStyle</key> <string>automatic</string>
+    <key>teamID</key>       <string>${TEAM_ID}</string>
 </dict>
 </plist>
 PLIST
