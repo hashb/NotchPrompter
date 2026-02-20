@@ -58,7 +58,7 @@ info "Detecting Developer ID from Keychain..."
 TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null \
     | grep "Developer ID Application" \
     | head -1 \
-    | sed 's/.*(\(.*\))/\1/' \
+    | sed 's/.*(\(.*\)).*/\1/' \
     | tr -d ' ' || true)
 
 if [[ -z "$TEAM_ID" ]]; then
