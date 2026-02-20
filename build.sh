@@ -59,7 +59,7 @@ TEAM_ID=$(security find-identity -v -p codesigning 2>/dev/null \
     | grep "Developer ID Application" \
     | head -1 \
     | sed 's/.*(\(.*\))/\1/' \
-    | tr -d ' ')
+    | tr -d ' ' || true)
 
 if [[ -z "$TEAM_ID" ]]; then
     error "No 'Developer ID Application' certificate found in Keychain. Install one from developer.apple.com or open Xcode → Settings → Accounts."
