@@ -78,9 +78,9 @@ xcodebuild archive \
     -scheme "$SCHEME" \
     -configuration Release \
     -archivePath "$ARCHIVE_PATH" \
-    -allowProvisioningUpdates \
     DEVELOPMENT_TEAM="$TEAM_ID" \
-    CODE_SIGN_STYLE=Automatic
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY="Developer ID Application"
 
 # ── Export ────────────────────────────────────────────────────────────────────
 info "Generating ExportOptions.plist..."
@@ -90,7 +90,7 @@ cat > "$EXPORT_PLIST" <<PLIST
 <plist version="1.0">
 <dict>
     <key>method</key>       <string>developer-id</string>
-    <key>signingStyle</key> <string>automatic</string>
+    <key>signingStyle</key> <string>manual</string>
     <key>teamID</key>       <string>${TEAM_ID}</string>
 </dict>
 </plist>
