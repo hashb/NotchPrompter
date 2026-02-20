@@ -119,15 +119,21 @@ The exported app will be at `build/export/notch-prompter.app`.
 The included [`build.sh`](build.sh) script handles the full pipeline:
 archive → export → DMG → notarize → staple.
 
+Signing identity is read automatically from your Keychain — no credentials on the command line.
+
 ```bash
-# Unsigned build (no Apple Developer account required)
+# Signed DMG (uses Developer ID from Keychain)
 ./build.sh
 
-# Signed, notarized, and stapled build
-APPLE_ID="you@example.com" \
-TEAM_ID="YOURTEAMID" \
-APP_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
-./build.sh
+# Signed + notarized + stapled
+NOTARIZE=true ./build.sh
+```
+
+**One-time notarization setup** (only needed once — credentials are stored securely in Keychain):
+
+```bash
+xcrun notarytool store-credentials "notarytool"
+# prompts for Apple ID, Team ID, and app-specific password
 ```
 
 Set `VERSION` to override the default (`1.2`):
@@ -138,22 +144,13 @@ VERSION=1.3 ./build.sh
 
 The final DMG is written to `build/NotchPrompter-<version>.dmg`.
 
-### Manual — `create-dmg`
+### Manual — `npx create-dmg`
+
+[`create-dmg`](https://github.com/sindresorhus/create-dmg) (npm) auto-signs the DMG using the Developer ID already in your Keychain — no credentials needed:
 
 ```bash
-brew install create-dmg
-
 # After exporting the .app to build/export/
-create-dmg \
-  --volname "NotchPrompter" \
-  --window-pos 200 120 \
-  --window-size 600 400 \
-  --icon-size 100 \
-  --icon "notch-prompter.app" 175 190 \
-  --hide-extension "notch-prompter.app" \
-  --app-drop-link 425 190 \
-  "build/NotchPrompter-1.2.dmg" \
-  "build/export/"
+npx create-dmg build/export/notch-prompter.app build/
 ```
 
 ### Manual — `hdiutil` (no extra tools needed)
@@ -174,13 +171,18 @@ rm -rf /tmp/dmg-staging
 
 ### Notarization (manual)
 
-Requires a paid Apple Developer account. Use `xcrun notarytool` with an [app-specific password](https://support.apple.com/en-us/102654):
+Store your credentials once in Keychain:
+
+```bash
+xcrun notarytool store-credentials "notarytool"
+# prompts for Apple ID, Team ID, and app-specific password
+```
+
+Then submit and staple:
 
 ```bash
 xcrun notarytool submit build/NotchPrompter-1.2.dmg \
-  --apple-id "you@example.com" \
-  --team-id "YOURTEAMID" \
-  --password "xxxx-xxxx-xxxx-xxxx" \
+  --keychain-profile "notarytool" \
   --wait
 
 xcrun stapler staple build/NotchPrompter-1.2.dmg

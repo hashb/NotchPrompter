@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 # build.sh — Build, package, notarize, and staple NotchPrompter
 #
-# Usage (unsigned):
-#   ./build.sh
+# Signing identity and Developer ID are read automatically from your Keychain
+# (no need to pass Apple ID or Team ID on the command line).
 #
-# Usage (signed + notarized):
-#   APPLE_ID="you@example.com" TEAM_ID="ABCDE12345" APP_PASSWORD="xxxx-xxxx-xxxx-xxxx" ./build.sh
+# Usage:
+#   ./build.sh                    # signed DMG (uses Keychain identity)
+#   NOTARIZE=true ./build.sh      # signed + notarize + staple
+#
+# One-time notarization setup (run once, then NOTARIZE=true just works):
+#   xcrun notarytool store-credentials "notarytool"
+#   # follow the prompts for Apple ID, Team ID, and app-specific password
 #
 # Optional env vars:
-#   VERSION         — app version string appended to DMG filename (default: 1.2)
-#   SCHEME          — Xcode scheme to build (default: notch-prompter)
-#   PROJECT         — path to .xcodeproj (default: notch-prompter.xcodeproj)
-#   BUILD_DIR       — output directory (default: build)
+#   VERSION          — version string appended to DMG filename (default: 1.2)
+#   SCHEME           — Xcode scheme (default: notch-prompter)
+#   PROJECT          — path to .xcodeproj (default: notch-prompter.xcodeproj)
+#   BUILD_DIR        — output directory (default: build)
+#   NOTARIZE         — set to "true" to notarize and staple (default: false)
+#   KEYCHAIN_PROFILE — notarytool keychain profile name (default: notarytool)
 
 set -euo pipefail
 
@@ -20,17 +27,14 @@ VERSION="${VERSION:-1.2}"
 SCHEME="${SCHEME:-notch-prompter}"
 PROJECT="${PROJECT:-notch-prompter.xcodeproj}"
 BUILD_DIR="${BUILD_DIR:-build}"
+NOTARIZE="${NOTARIZE:-false}"
+KEYCHAIN_PROFILE="${KEYCHAIN_PROFILE:-notarytool}"
 
 ARCHIVE_PATH="$BUILD_DIR/NotchPrompter.xcarchive"
 EXPORT_PATH="$BUILD_DIR/export"
 EXPORT_PLIST="$BUILD_DIR/ExportOptions.plist"
-DMG_PATH="$BUILD_DIR/NotchPrompter-$VERSION.dmg"
 APP_BUNDLE="$EXPORT_PATH/$SCHEME.app"
-
-# Notarization credentials — leave unset to skip notarization
-APPLE_ID="${APPLE_ID:-}"
-TEAM_ID="${TEAM_ID:-}"
-APP_PASSWORD="${APP_PASSWORD:-}"
+DMG_PATH="$BUILD_DIR/NotchPrompter-$VERSION.dmg"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 info()  { printf '\033[1;34m▶ %s\033[0m\n' "$*"; }
@@ -44,17 +48,10 @@ require_cmd() {
 # ── Preflight ─────────────────────────────────────────────────────────────────
 info "Checking prerequisites..."
 require_cmd xcodebuild "Install Xcode from the Mac App Store, then run: sudo xcodebuild -license accept"
+require_cmd npx         "Install Node.js from https://nodejs.org"
 
 [[ -f "$PROJECT/project.pbxproj" ]] \
     || error "Xcode project not found at '$PROJECT'. See README for one-time setup instructions."
-
-NOTARIZE=false
-if [[ -n "$APPLE_ID" && -n "$TEAM_ID" && -n "$APP_PASSWORD" ]]; then
-    NOTARIZE=true
-    info "Notarization credentials detected — will sign with Developer ID, notarize, and staple."
-else
-    info "No notarization credentials — building unsigned (set APPLE_ID, TEAM_ID, APP_PASSWORD to enable)."
-fi
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 info "Cleaning previous build artifacts..."
@@ -63,54 +60,26 @@ mkdir -p "$BUILD_DIR"
 
 # ── Archive ───────────────────────────────────────────────────────────────────
 info "Archiving $SCHEME (Release)..."
-
-if $NOTARIZE; then
-    xcodebuild archive \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -configuration Release \
-        -archivePath "$ARCHIVE_PATH" \
-        -allowProvisioningUpdates
-else
-    xcodebuild archive \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -configuration Release \
-        -archivePath "$ARCHIVE_PATH" \
-        CODE_SIGN_IDENTITY="-" \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO
-fi
-
-# ── Write ExportOptions.plist ─────────────────────────────────────────────────
-info "Generating ExportOptions.plist..."
-
-if $NOTARIZE; then
-    cat > "$EXPORT_PLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>           <string>developer-id</string>
-    <key>signingStyle</key>     <string>automatic</string>
-    <key>teamID</key>           <string>${TEAM_ID}</string>
-</dict>
-</plist>
-PLIST
-else
-    cat > "$EXPORT_PLIST" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>       <string>mac-application</string>
-    <key>destination</key>  <string>export</string>
-</dict>
-</plist>
-PLIST
-fi
+xcodebuild archive \
+    -project "$PROJECT" \
+    -scheme "$SCHEME" \
+    -configuration Release \
+    -archivePath "$ARCHIVE_PATH" \
+    -allowProvisioningUpdates
 
 # ── Export ────────────────────────────────────────────────────────────────────
+info "Generating ExportOptions.plist..."
+cat > "$EXPORT_PLIST" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>       <string>developer-id</string>
+    <key>signingStyle</key> <string>automatic</string>
+</dict>
+</plist>
+PLIST
+
 info "Exporting .app bundle..."
 xcodebuild -exportArchive \
     -archivePath "$ARCHIVE_PATH" \
@@ -120,72 +89,37 @@ xcodebuild -exportArchive \
 [[ -d "$APP_BUNDLE" ]] || error "Export failed — .app not found at '$APP_BUNDLE'"
 
 # ── Create DMG ────────────────────────────────────────────────────────────────
-info "Creating DMG..."
+# npx create-dmg auto-signs the DMG using the Developer ID from your Keychain
+info "Creating DMG with create-dmg..."
+npx create-dmg "$APP_BUNDLE" "$BUILD_DIR/" 2>&1 || true
+# create-dmg exits non-zero when it can't notarize (which is fine — we do it separately)
 
-# Locate the best available app icon for the DMG volume icon
-ICON_PATH="notch-prompter/Assets.xcassets/AppIcon.appiconset"
-VOLUME_ICON=""
-for size in 512 256 128; do
-    candidate=$(find "$ICON_PATH" -name "*${size}*" -name "*.png" 2>/dev/null | head -1)
-    if [[ -n "$candidate" ]]; then
-        VOLUME_ICON="$candidate"
-        break
-    fi
-done
-
-if command -v create-dmg &>/dev/null; then
-    ICON_ARG=()
-    [[ -n "$VOLUME_ICON" ]] && ICON_ARG=(--volicon "$VOLUME_ICON")
-
-    create-dmg \
-        --volname "NotchPrompter" \
-        "${ICON_ARG[@]}" \
-        --window-pos 200 120 \
-        --window-size 600 400 \
-        --icon-size 100 \
-        --icon "$SCHEME.app" 175 190 \
-        --hide-extension "$SCHEME.app" \
-        --app-drop-link 425 190 \
-        "$DMG_PATH" \
-        "$EXPORT_PATH/"
-else
-    info "create-dmg not found — using hdiutil (run 'brew install create-dmg' for a styled DMG)"
-    STAGING="$BUILD_DIR/dmg-staging"
-    mkdir -p "$STAGING"
-    cp -r "$APP_BUNDLE" "$STAGING/"
-    ln -s /Applications "$STAGING/Applications"
-
-    hdiutil create \
-        -volname "NotchPrompter" \
-        -srcfolder "$STAGING" \
-        -ov \
-        -format UDZO \
-        "$DMG_PATH"
-
-    rm -rf "$STAGING"
-fi
+# Locate the generated DMG (named "<App> <version>.dmg") and rename it
+GENERATED_DMG=$(find "$BUILD_DIR" -maxdepth 1 -name "*.dmg" | head -1)
+[[ -n "$GENERATED_DMG" ]] || error "DMG not found in $BUILD_DIR after create-dmg"
+mv "$GENERATED_DMG" "$DMG_PATH"
+ok "DMG: $DMG_PATH"
 
 # ── Notarize & Staple ─────────────────────────────────────────────────────────
-if $NOTARIZE; then
+if [[ "$NOTARIZE" == "true" ]]; then
     info "Submitting DMG for notarization (this may take a few minutes)..."
+    info "Using keychain profile: $KEYCHAIN_PROFILE"
     xcrun notarytool submit "$DMG_PATH" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$TEAM_ID" \
-        --password "$APP_PASSWORD" \
+        --keychain-profile "$KEYCHAIN_PROFILE" \
         --wait
 
-    info "Stapling notarization ticket to DMG..."
+    info "Stapling notarization ticket..."
     xcrun stapler staple "$DMG_PATH"
 
-    info "Verifying notarization..."
+    info "Verifying..."
     xcrun stapler validate "$DMG_PATH"
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 ok "Build complete: $DMG_PATH"
-if $NOTARIZE; then
+if [[ "$NOTARIZE" == "true" ]]; then
     ok "Notarized and stapled — ready for distribution."
 else
-    ok "Unsigned build — users will need to allow the app in System Settings > Privacy & Security on first launch."
+    ok "Run 'NOTARIZE=true ./build.sh' to notarize (requires one-time keychain setup — see script header)."
 fi
