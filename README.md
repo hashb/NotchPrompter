@@ -34,142 +34,156 @@ Head to [Releases](https://github.com/jpomykala/NotchPrompter/releases) and down
 ### Prerequisites
 
 - macOS 13.0 or later
-- Xcode 14.0 or later (available from the Mac App Store)
+- Xcode 14.0 or later — install from the Mac App Store, then accept the license:
+  ```bash
+  sudo xcodebuild -license accept
+  ```
 
-### Steps
+### One-time project setup
 
-The Xcode project file (`.xcodeproj`) is excluded from the repository via `.gitignore`. You need to recreate it in Xcode before building.
+The Xcode project file (`.xcodeproj`) is excluded from the repository. You need to create it once before you can use `xcodebuild` from the command line.
 
-1. **Clone the repository**
+1. Clone the repository:
 
    ```bash
    git clone https://github.com/jpomykala/NotchPrompter.git
    cd NotchPrompter
    ```
 
-2. **Create a new Xcode project**
+2. Open Xcode, choose **File > New > Project > macOS > App**, and configure:
+   - **Product Name**: `notch-prompter`
+   - **Bundle Identifier**: `com.yourname.notch-prompter`
+   - **Interface**: SwiftUI · **Language**: Swift
+   - Save the project inside the `NotchPrompter/` folder
 
-   - Open Xcode and choose **File > New > Project**
-   - Select **macOS > App** and click **Next**
-   - Set the following options:
-     - **Product Name**: `notch-prompter`
-     - **Bundle Identifier**: `com.yourname.notch-prompter`
-     - **Interface**: SwiftUI
-     - **Language**: Swift
-   - Save the project **inside** the `NotchPrompter/` folder (so the `.xcodeproj` sits alongside `notch-prompter/`)
+3. In the Xcode project navigator, delete the generated `ContentView.swift` (move to Trash), then drag in the files from `notch-prompter/` with **"Copy items if needed" OFF**:
+   `AudioMonitor.swift`, `NotchPrompterApp.swift`, `PrompterView.swift`, `PrompterViewModel.swift`, `PrompterWindow.swift`, `SettingsView.swift`, and the `Assets.xcassets` folder.
 
-3. **Replace generated source files**
+4. Set the deployment target: **Target > General > Minimum Deployments > macOS 13.0**
 
-   - In Xcode, delete the auto-generated `ContentView.swift` (move to Trash)
-   - Drag the following files from the `notch-prompter/` folder into the Xcode project navigator, checking **"Copy items if needed" is OFF** (they are already in place):
-     - `AudioMonitor.swift`
-     - `NotchPrompterApp.swift`
-     - `PrompterView.swift`
-     - `PrompterViewModel.swift`
-     - `PrompterWindow.swift`
-     - `SettingsView.swift`
-   - Also add the `Assets.xcassets` folder from `notch-prompter/Assets.xcassets`
+5. Add the microphone privacy key: **Target > Info tab**, add key `Privacy - Microphone Usage Description` with value `Used for voice-activated teleprompter control`.
 
-4. **Set the deployment target**
+### Build from the command line
 
-   - Select the project in the navigator, then the target
-   - Under **General > Minimum Deployments**, set macOS to **13.0**
+After the one-time setup above, all builds can be done entirely in the terminal.
 
-5. **Add microphone usage description**
+**Debug build (run locally):**
 
-   The app requests microphone access for voice activation. Add the required key to `Info.plist`:
-   - Select **Info.plist** in the navigator (or go to **Target > Info** tab)
-   - Add a new key: `Privacy - Microphone Usage Description`
-   - Value: `Used for voice-activated teleprompter control`
+```bash
+xcodebuild \
+  -project notch-prompter.xcodeproj \
+  -scheme notch-prompter \
+  -configuration Debug \
+  -derivedDataPath build/DerivedData
+```
 
-6. **Build and run**
+**Release archive:**
 
-   Press **Cmd+R** to build and run the app. The app runs as a menu bar extra with no Dock icon.
+```bash
+xcodebuild archive \
+  -project notch-prompter.xcodeproj \
+  -scheme notch-prompter \
+  -configuration Release \
+  -archivePath build/NotchPrompter.xcarchive
+```
 
-   For a release build: **Product > Archive**, then **Distribute App > Copy App** to export the `.app` bundle.
+**Export `.app` from archive (unsigned — no Apple Developer account needed):**
+
+```bash
+# Write an export options plist
+cat > /tmp/ExportOptions.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key><string>mac-application</string>
+    <key>destination</key><string>export</string>
+</dict>
+</plist>
+EOF
+
+xcodebuild -exportArchive \
+  -archivePath build/NotchPrompter.xcarchive \
+  -exportOptionsPlist /tmp/ExportOptions.plist \
+  -exportPath build/export
+```
+
+The exported app will be at `build/export/notch-prompter.app`.
 
 ---
 
 ## Creating a DMG for Distribution
 
-A DMG (disk image) is the standard way to distribute macOS apps outside the App Store.
+### Automated (recommended) — use `build.sh`
 
-### Option A — Using `create-dmg` (recommended)
-
-[`create-dmg`](https://github.com/create-dmg/create-dmg) is a Homebrew-installable tool that produces a polished, styled DMG with a background image and icon layout.
-
-1. **Install create-dmg**
-
-   ```bash
-   brew install create-dmg
-   ```
-
-2. **Build and export the app**
-
-   In Xcode: **Product > Archive > Distribute App > Copy App**, then export to a folder (e.g. `~/Desktop/build/`).
-
-3. **Create the DMG**
-
-   ```bash
-   create-dmg \
-     --volname "NotchPrompter" \
-     --volicon "notch-prompter/Assets.xcassets/AppIcon.appiconset/mac512.png" \
-     --window-pos 200 120 \
-     --window-size 600 400 \
-     --icon-size 100 \
-     --icon "notch-prompter.app" 175 190 \
-     --hide-extension "notch-prompter.app" \
-     --app-drop-link 425 190 \
-     "NotchPrompter-1.2.dmg" \
-     "~/Desktop/build/"
-   ```
-
-   This creates `NotchPrompter-1.2.dmg` in the current directory.
-
-### Option B — Manual DMG with `hdiutil`
-
-This produces a plain (unstyled) DMG using only built-in macOS tools.
-
-1. **Prepare a staging folder**
-
-   ```bash
-   mkdir -p /tmp/dmg-staging
-   cp -r ~/Desktop/build/notch-prompter.app /tmp/dmg-staging/
-   # Optionally add a symlink to /Applications for drag-install UX:
-   ln -s /Applications /tmp/dmg-staging/Applications
-   ```
-
-2. **Create and compress the DMG**
-
-   ```bash
-   hdiutil create \
-     -volname "NotchPrompter" \
-     -srcfolder /tmp/dmg-staging \
-     -ov \
-     -format UDZO \
-     NotchPrompter-1.2.dmg
-   ```
-
-3. **Clean up**
-
-   ```bash
-   rm -rf /tmp/dmg-staging
-   ```
-
-### Notarization (optional)
-
-If you have a paid Apple Developer account, notarize the DMG so macOS Gatekeeper accepts it without user override:
+The included [`build.sh`](build.sh) script handles the full pipeline:
+archive → export → DMG → notarize → staple.
 
 ```bash
-# Submit for notarization
-xcrun notarytool submit NotchPrompter-1.2.dmg \
-  --apple-id "your@email.com" \
+# Unsigned build (no Apple Developer account required)
+./build.sh
+
+# Signed, notarized, and stapled build
+APPLE_ID="you@example.com" \
+TEAM_ID="YOURTEAMID" \
+APP_PASSWORD="xxxx-xxxx-xxxx-xxxx" \
+./build.sh
+```
+
+Set `VERSION` to override the default (`1.2`):
+
+```bash
+VERSION=1.3 ./build.sh
+```
+
+The final DMG is written to `build/NotchPrompter-<version>.dmg`.
+
+### Manual — `create-dmg`
+
+```bash
+brew install create-dmg
+
+# After exporting the .app to build/export/
+create-dmg \
+  --volname "NotchPrompter" \
+  --window-pos 200 120 \
+  --window-size 600 400 \
+  --icon-size 100 \
+  --icon "notch-prompter.app" 175 190 \
+  --hide-extension "notch-prompter.app" \
+  --app-drop-link 425 190 \
+  "build/NotchPrompter-1.2.dmg" \
+  "build/export/"
+```
+
+### Manual — `hdiutil` (no extra tools needed)
+
+```bash
+mkdir -p /tmp/dmg-staging
+cp -r build/export/notch-prompter.app /tmp/dmg-staging/
+ln -s /Applications /tmp/dmg-staging/Applications
+
+hdiutil create \
+  -volname "NotchPrompter" \
+  -srcfolder /tmp/dmg-staging \
+  -ov -format UDZO \
+  build/NotchPrompter-1.2.dmg
+
+rm -rf /tmp/dmg-staging
+```
+
+### Notarization (manual)
+
+Requires a paid Apple Developer account. Use `xcrun notarytool` with an [app-specific password](https://support.apple.com/en-us/102654):
+
+```bash
+xcrun notarytool submit build/NotchPrompter-1.2.dmg \
+  --apple-id "you@example.com" \
   --team-id "YOURTEAMID" \
-  --password "app-specific-password" \
+  --password "xxxx-xxxx-xxxx-xxxx" \
   --wait
 
-# Staple the notarization ticket to the DMG
-xcrun stapler staple NotchPrompter-1.2.dmg
+xcrun stapler staple build/NotchPrompter-1.2.dmg
 ```
 
 ---
