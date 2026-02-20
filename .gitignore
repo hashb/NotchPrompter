@@ -8,6 +8,8 @@ build/
 *.xcuserstate
 *.xcworkspace
 !default.xcworkspace
+!notch-prompter.xcodeproj/project.xcworkspace/
+!notch-prompter.xcodeproj/project.xcworkspace/**
 xcuserdata/
 DerivedData/
 *.moved-aside
@@ -20,7 +22,6 @@ DerivedData/
 #
 .build/
 .Pbuild/
-*.xcodeproj
 Packages/
 Package.resolved
 *.swiftpm
